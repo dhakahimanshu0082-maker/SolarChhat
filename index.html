@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SolarChhat — Roof photo to solar plan</title>
+<meta name="description" content="Upload a photo of any roof. Claude maps the usable area, NASA data gives the sunlight, and you get a full rooftop solar plan with PM Surya Ghar subsidy and payback.">
+<style>
+  :root{
+    --bg:#faf7f0; --card:#ffffff; --ink:#1d1b16; --muted:#6b6557; --line:#e7e0cf;
+    --sun:#f5a524; --sun-deep:#d9800a; --panel:#1f4fa8; --panel-light:#5b86d6;
+    --roof:rgba(245,165,36,.18); --roof-stroke:#d9800a; --obs:rgba(214,61,46,.30); --obs-stroke:#c0392b;
+    --good:#2f8f4e; --radius:14px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;background:var(--bg);color:var(--ink);line-height:1.45}
+  header{padding:22px 28px 10px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .logo{width:42px;height:42px;border-radius:12px;background:radial-gradient(circle at 50% 38%,#ffd36b 0 30%,var(--sun) 31% 100%);box-shadow:0 4px 14px rgba(245,165,36,.4);position:relative}
+  .logo:after{content:"";position:absolute;left:7px;right:7px;bottom:7px;height:11px;background:repeating-linear-gradient(90deg,var(--panel) 0 6px,#fff 6px 7px);border-radius:2px}
+  h1{font-size:24px;margin:0;letter-spacing:-.02em}
+  header p{margin:0;color:var(--muted);font-size:14px}
+  main{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(330px,1fr);gap:20px;padding:10px 28px 40px;max-width:1500px;margin:0 auto}
+  @media (max-width:980px){main{grid-template-columns:1fr;padding:10px 14px 40px}header{padding:18px 14px 6px}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;margin-bottom:16px}
+  .card h2{font-size:15px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+  .step{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--ink);color:#fff;font-size:12px;font-weight:700}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  button,.btn{font:inherit;font-size:14px;border:1px solid var(--line);background:#fff;color:var(--ink);padding:8px 12px;border-radius:10px;cursor:pointer;transition:.15s}
+  button:hover{border-color:var(--sun-deep)}
+  button.primary{background:var(--ink);color:#fff;border-color:var(--ink)}
+  button.primary:hover{background:#000}
+  button.sun{background:var(--sun);border-color:var(--sun-deep);color:#1d1b16;font-weight:600}
+  button.active{background:#fff4dd;border-color:var(--sun-deep);font-weight:600}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  input,select{font:inherit;font-size:14px;padding:7px 9px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink);min-width:0}
+  label{font-size:13px;color:var(--muted)}
+  .field{display:flex;flex-direction:column;gap:3px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .stage{position:relative;background:#e9e4d6;border-radius:12px;overflow:hidden;min-height:340px;display:grid;place-items:center}
+  #cv{display:block;max-width:100%;height:auto;touch-action:none}
+  .drop{padding:40px 20px;text-align:center;color:var(--muted)}
+  .drop strong{color:var(--ink)}
+  .hint{font-size:13px;color:var(--muted);margin:8px 0 0}
+  .hint b{color:var(--ink)}
+  .status{font-size:13px;padding:8px 10px;border-radius:9px;background:#f4f0e4;margin-top:10px;display:none}
+  .status.show{display:block}
+  .status.err{background:#fde8e5;color:#8d2418}
+  .status.ok{background:#e6f4ea;color:#1e5e33}
+  .kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .kpi{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:#fffdf8}
+  .kpi .v{font-size:22px;font-weight:700;letter-spacing:-.02em}
+  .kpi .l{font-size:12px;color:var(--muted)}
+  .kpi.hero{grid-column:1/-1;background:linear-gradient(135deg,#fff4dd,#fffdf8);border-color:#f1d49a}
+  .kpi.hero .v{font-size:30px}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  td{padding:6px 0;border-bottom:1px dashed var(--line)}
+  td:last-child{text-align:right;font-variant-numeric:tabular-nums}
+  tr.total td{font-weight:700;border-bottom:none;border-top:1px solid var(--ink)}
+  .notes{font-size:14px;white-space:pre-wrap}
+  .pill{display:inline-block;font-size:11px;padding:2px 8px;border-radius:99px;background:#f4f0e4;color:var(--muted)}
+  .legend{display:flex;gap:14px;font-size:12px;color:var(--muted);flex-wrap:wrap;margin-top:8px}
+  .sw{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:5px}
+  details summary{cursor:pointer;font-size:14px;font-weight:600}
+  .empty{color:var(--muted);font-size:14px}
+  footer{text-align:center;color:var(--muted);font-size:12px;padding:0 20px 30px}
+  .spin{display:inline-block;width:14px;height:14px;border:2px solid #fff;border-right-color:transparent;border-radius:50%;animation:s .7s linear infinite;vertical-align:-2px}
+  @keyframes s{to{transform:rotate(360deg)}}
+  @media print{
+    header .row, .noprint, footer{display:none!important}
+    body{background:#fff}
+    main{grid-template-columns:1fr 1fr;padding:0}
+    .card{break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo" aria-hidden="true"></div>
+  <div>
+    <h1>SolarChhat</h1>
+    <p>Roof photo in, full rooftop solar plan out. Claude maps the roof, NASA supplies the sunlight, and the PM Surya Ghar subsidy is applied automatically.</p>
+  </div>
+</header>
+
+<main>
+  <section>
+    <div class="card">
+      <h2><span class="step">1</span> Your roof</h2>
+      <div class="row noprint">
+        <label class="btn" for="file" style="cursor:pointer">📷 Upload roof photo</label>
+        <input type="file" id="file" accept="image/*" hidden>
+        <button id="sampleBtn">Try a sample roof</button>
+        <span class="hint" style="margin:0">Tip: a top-down screenshot from Google Maps satellite view works best (north up).</span>
+      </div>
+      <div class="stage" id="stage" style="margin-top:12px">
+        <div class="drop" id="drop"><strong>Drop a roof image here</strong><br>or use “Try a sample roof” to see how it works.</div>
+        <canvas id="cv" hidden></canvas>
+      </div>
+      <div class="legend">
+        <span><i class="sw" style="background:var(--roof);border:1px solid var(--roof-stroke)"></i>Usable roof</span>
+        <span><i class="sw" style="background:var(--obs);border:1px solid var(--obs-stroke)"></i>Obstruction (kept clear)</span>
+        <span><i class="sw" style="background:var(--panel)"></i>Recommended panels</span>
+        <span><i class="sw" style="background:#fff;border:1.5px solid var(--panel-light)"></i>Extra roof capacity</span>
+      </div>
+    </div>
+
+    <div class="card noprint">
+      <h2><span class="step">2</span> Map the roof</h2>
+      <div class="row">
+        <button class="sun" id="aiBtn" disabled>✨ Auto-detect with Claude</button>
+        <span class="hint" style="margin:0">or trace it yourself:</span>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button data-mode="roof" class="modeBtn" disabled>Trace roof</button>
+        <button data-mode="obs" class="modeBtn" disabled>Add obstruction</button>
+        <button data-mode="scale" class="modeBtn" disabled>Set scale</button>
+        <button id="finishBtn" disabled>Finish shape</button>
+        <button id="undoBtn" disabled>Undo</button>
+        <button id="clearBtn" disabled>Clear all</button>
+      </div>
+      <p class="hint" id="modeHint">Upload a roof to begin.</p>
+      <div class="row" style="margin-top:8px">
+        <span class="pill" id="scalePill">Scale: not set</span>
+      </div>
+      <div class="status" id="aiStatus"></div>
+      <details style="margin-top:12px">
+        <summary>Claude API key (for auto-detect)</summary>
+        <p class="hint">Your key stays in this browser and is sent only to api.anthropic.com. Without a key you can trace the roof by hand, and everything else still works.</p>
+        <div class="grid2">
+          <div class="field"><label for="apiKey">API key</label><input id="apiKey" type="password" placeholder="sk-ant-..." autocomplete="off"></div>
+          <div class="field"><label for="model">Model</label><input id="model" value="claude-sonnet-5-5"></div>
+        </div>
+        <label style="display:flex;gap:6px;align-items:center;margin-top:8px"><input type="checkbox" id="remember"> Remember key on this device</label>
+      </details>
+    </div>
+
+    <div class="card" id="notesCard" hidden>
+      <h2>🔍 Claude's roof assessment</h2>
+      <div class="notes" id="notes"></div>
+    </div>
+  </section>
+
+  <aside>
+    <div class="card noprint">
+      <h2><span class="step">3</span> Location and usage</h2>
+      <div class="grid2">
+        <div class="field"><label for="city">City</label>
+          <select id="city"></select></div>
+        <div class="field"><label>&nbsp;</label><button id="geoBtn">📍 Use my location</button></div>
+        <div class="field"><label for="lat">Latitude</label><input id="lat" type="number" step="0.0001"></div>
+        <div class="field"><label for="lon">Longitude</label><input id="lon" type="number" step="0.0001"></div>
+        <div class="field"><label for="units">Monthly electricity use (units)</label><input id="units" type="number" value="300" min="0"></div>
+        <div class="field"><label for="tariff">Your tariff (₹/unit)</label><input id="tariff" type="number" value="7" step="0.1" min="0"></div>
+      </div>
+      <div class="status" id="solarStatus"></div>
+      <details style="margin-top:12px">
+        <summary>Engineering and cost assumptions</summary>
+        <div class="grid3" style="margin-top:10px">
+          <div class="field"><label for="pw">Panel (W)</label><input id="pw" type="number" value="550"></div>
+          <div class="field"><label for="pl">Panel long side (m)</label><input id="pl" type="number" value="2.278" step="0.001"></div>
+          <div class="field"><label for="ps">Panel short side (m)</label><input id="ps" type="number" value="1.134" step="0.001"></div>
+          <div class="field"><label for="tilt">Tilt (°)</label><input id="tilt" type="number" value="15" min="0" max="45"></div>
+          <div class="field"><label for="setback">Edge setback (m)</label><input id="setback" type="number" value="0.6" step="0.1"></div>
+          <div class="field"><label for="buffer">Obstruction gap (m)</label><input id="buffer" type="number" value="0.5" step="0.1"></div>
+          <div class="field"><label for="pr">Performance ratio</label><input id="pr" type="number" value="0.77" step="0.01"></div>
+          <div class="field"><label for="cost">Cost (₹/kW)</label><input id="cost" type="number" value="60000" step="1000"></div>
+          <div class="field"><label for="exportRate">Export rate (₹/unit)</label><input id="exportRate" type="number" value="3" step="0.1"></div>
+          <div class="field"><label for="stateKw">State subsidy (₹/kW)</label><input id="stateKw" type="number" value="0" step="1000"></div>
+          <div class="field"><label for="stateCap">State subsidy cap (₹)</label><input id="stateCap" type="number" value="0" step="1000"></div>
+          <div class="field"><label for="special">Subsidy region</label>
+            <select id="special"><option value="0">General states</option><option value="1">Special category (NE, hill states, islands)</option></select></div>
+        </div>
+        <p class="hint">Delhi residents: set state subsidy to ₹10,000/kW with a ₹30,000 cap. Rows are spaced so they don't shade each other at noon on the winter solstice.</p>
+      </details>
+    </div>
+
+    <div class="card" id="resultsCard">
+      <h2><span class="step">4</span> Your solar plan</h2>
+      <div id="results"><p class="empty">Map a roof and set the scale to see your plan.</p></div>
+    </div>
+
+    <div class="card" id="chartCard" hidden>
+      <h2>☀️ Monthly generation vs your use</h2>
+      <canvas id="chart" width="600" height="230" style="width:100%;height:auto"></canvas>
+      <p class="hint" id="chartSrc"></p>
+    </div>
+
+    <div class="card" id="costCard" hidden>
+      <h2>₹ Cost breakdown</h2>
+      <table id="costTable"></table>
+      <div class="row noprint" style="margin-top:12px"><button class="primary" onclick="window.print()">🖨 Save plan as PDF</button></div>
+    </div>
+  </aside>
+</main>
+<footer>Built with Claude by Himanshu Dhaka, IIT Delhi. These are planning estimates; get a site survey from an empanelled vendor before installing. Irradiance: NASA POWER. Subsidy: PM Surya Ghar: Muft Bijli Yojana.</footer>
+
+<script>
+"use strict";
+/* ---------------- constants ---------------- */
+const CITIES = [
+  ["New Delhi",28.6139,77.2090],["IIT Delhi",28.5450,77.1926],["Mumbai",19.0760,72.8777],["Bengaluru",12.9716,77.5946],
+  ["Chennai",13.0827,80.2707],["Kolkata",22.5726,88.3639],["Hyderabad",17.3850,78.4867],["Pune",18.5204,73.8567],
+  ["Ahmedabad",23.0225,72.5714],["Jaipur",26.9124,75.7873],["Lucknow",26.8467,80.9462],["Chandigarh",30.7333,76.7794],
+  ["Bhopal",23.2599,77.4126],["Patna",25.5941,85.1376],["Guwahati",26.1445,91.7362],["Kochi",9.9312,76.2673],["Custom",null,null]
+];
+// Fallback if NASA POWER is unreachable: typical north-Indian monthly GHI (kWh/m²/day)
+const FALLBACK_GHI = [4.1,5.0,6.0,6.7,6.9,6.2,5.1,4.9,5.3,5.2,4.5,3.9];
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const DAYS = [31,28,31,30,31,30,31,31,30,31,30,31];
+const CO2_KG_PER_KWH = 0.71; // approx. Indian grid emission factor (CEA)
+
+/* ---------------- state ---------------- */
+const S = {
+  img:null, W:0, H:0,
+  roof:[], obs:[], cur:[], mode:null,
+  scaleLine:[], mPerPx:null, scaleSource:null,
+  panels:[], recCount:0, orient:null,
+  ghi:null, ghiSource:null, solarKey:null,
+  hover:null
+};
+const $ = id => document.getElementById(id);
+const cv = $("cv"), ctx = cv.getContext("2d");
+const fmtINR = n => "₹" + Math.round(n).toLocaleString("en-IN");
+const fmt = (n,d=1) => Number(n).toLocaleString("en-IN",{maximumFractionDigits:d,minimumFractionDigits:d});
+function store(k,v){ try{ v===null?localStorage.removeItem(k):localStorage.setItem(k,v);}catch(e){} }
+function load(k){ try{ return localStorage.getItem(k);}catch(e){ return null; } }
+
+/* ---------------- geometry ---------------- */
+function inPoly(p, poly){
+  let c=false;
+  for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+    const a=poly[i], b=poly[j];
+    if(((a[1]>p[1])!==(b[1]>p[1])) && (p[0] < (b[0]-a[0])*(p[1]-a[1])/(b[1]-a[1])+a[0])) c=!c;
+  }
+  return c;
+}
+function segDist(p,a,b){
+  const dx=b[0]-a[0], dy=b[1]-a[1], L=dx*dx+dy*dy;
+  let t = L ? ((p[0]-a[0])*dx+(p[1]-a[1])*dy)/L : 0;
+  t=Math.max(0,Math.min(1,t));
+  return Math.hypot(p[0]-(a[0]+t*dx), p[1]-(a[1]+t*dy));
+}
+function edgeDist(p,poly){
+  let d=Infinity;
+  for(let i=0;i<poly.length;i++) d=Math.min(d, segDist(p, poly[i], poly[(i+1)%poly.length]));
+  return d;
+}
+function polyArea(poly){
+  let a=0;
+  for(let i=0;i<poly.length;i++){ const p=poly[i], q=poly[(i+1)%poly.length]; a+=p[0]*q[1]-q[0]*p[1]; }
+  return Math.abs(a)/2;
+}
+function bbox(poly){
+  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+  for(const [x,y] of poly){ x0=Math.min(x0,x); y0=Math.min(y0,y); x1=Math.max(x1,x); y1=Math.max(y1,y); }
+  return {x0,y0,x1,y1};
+}
+
+/* ---------------- panel layout ---------------- */
+function rectFits(x,y,w,h,setPx,bufPx){
+  const pts=[];
+  for(let i=0;i<=2;i++) for(let j=0;j<=2;j++) pts.push([x+w*i/2, y+h*j/2]);
+  for(const p of pts){
+    if(!inPoly(p,S.roof) || edgeDist(p,S.roof) < setPx) return false;
+    for(const o of S.obs){ if(inPoly(p,o) || edgeDist(p,o) < bufPx) return false; }
+  }
+  for(const o of S.obs) for(const v of o){
+    if(v[0]>x-bufPx && v[0]<x+w+bufPx && v[1]>y-bufPx && v[1]<y+h+bufPx) return false;
+  }
+  return true;
+}
+function layoutPanels(){
+  S.panels=[]; S.orient=null;
+  if(S.roof.length<3 || !S.mPerPx) return;
+  const m = S.mPerPx;
+  const long = +$("pl").value||2.278, short = +$("ps").value||1.134;
+  const tilt = Math.max(0, Math.min(60, +$("tilt").value||0)) * Math.PI/180;
+  const lat = Math.abs(+$("lat").value || 28.6);
+  const alt = Math.max(15, 90 - lat - 23.45) * Math.PI/180; // sun altitude, winter-solstice noon
+  const setPx = (+$("setback").value||0)/m, bufPx=(+$("buffer").value||0)/m, gapPx = 0.02/m;
+  const bb = bbox(S.roof);
+  let best=[], bestOrient=null;
+  for(const orient of ["portrait","landscape"]){
+    const along = orient==="portrait" ? short : long;   // east-west width
+    const slope = orient==="portrait" ? long : short;   // north-south length along tilt
+    const wPx = along/m;
+    const dPx = slope*Math.cos(tilt)/m;
+    const rowGapPx = tilt>0 ? (slope*Math.sin(tilt)/Math.tan(alt))/m : gapPx;
+    const pitchX = wPx+gapPx, pitchY = dPx+rowGapPx;
+    const steps = 6;
+    for(let ox=0; ox<steps; ox++) for(let oy=0; oy<steps; oy++){
+      const sx = bb.x0 + pitchX*ox/steps, sy = bb.y0 + pitchY*oy/steps;
+      const got=[];
+      for(let y=sy; y+dPx<=bb.y1; y+=pitchY)
+        for(let x=sx; x+wPx<=bb.x1; x+=pitchX)
+          if(rectFits(x,y,wPx,dPx,setPx,bufPx)) got.push({x,y,w:wPx,h:dPx});
+      if(got.length>best.length){ best=got; bestOrient=orient; }
+    }
+  }
+  // South side (bottom of a north-up image) first: typically least shaded by stairwells/tanks
+  best.sort((a,b)=> (b.y-a.y) || (a.x-b.x));
+  S.panels=best; S.orient=bestOrient;
+}
+
+/* ---------------- drawing ---------------- */
+function draw(){
+  if(!S.img) return;
+  ctx.clearRect(0,0,S.W,S.H);
+  ctx.drawImage(S.img,0,0,S.W,S.H);
+  const lw = Math.max(1.5, S.W/450);
+  const path = poly => { ctx.beginPath(); poly.forEach((p,i)=> i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])); ctx.closePath(); };
+  if(S.roof.length>=3){ path(S.roof); ctx.fillStyle="rgba(245,165,36,.18)"; ctx.fill(); ctx.lineWidth=lw*1.6; ctx.strokeStyle="#d9800a"; ctx.stroke(); }
+  for(const o of S.obs){ path(o); ctx.fillStyle="rgba(214,61,46,.30)"; ctx.fill(); ctx.lineWidth=lw; ctx.strokeStyle="#c0392b"; ctx.stroke(); }
+  S.panels.forEach((p,i)=>{
+    const rec = i < S.recCount;
+    ctx.fillStyle = rec ? "#1f4fa8" : "rgba(255,255,255,.55)";
+    ctx.fillRect(p.x,p.y,p.w,p.h);
+    ctx.lineWidth = Math.max(1, lw*0.6);
+    ctx.strokeStyle = rec ? "#cfe0ff" : "#5b86d6";
+    ctx.strokeRect(p.x,p.y,p.w,p.h);
+    if(rec && p.h>14){ // cell lines
+      ctx.strokeStyle="rgba(207,224,255,.35)"; ctx.lineWidth=0.6; ctx.beginPath();
+      for(let k=1;k<4;k++){ const yy=p.y+p.h*k/4; ctx.moveTo(p.x,yy); ctx.lineTo(p.x+p.w,yy); }
+      ctx.stroke();
+    }
+  });
+  if(S.scaleLine.length===2){
+    const [a,b]=S.scaleLine; ctx.strokeStyle="#111"; ctx.lineWidth=lw*1.2; ctx.setLineDash([lw*4,lw*3]);
+    ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke(); ctx.setLineDash([]);
+  }
+  if(S.cur.length){
+    ctx.strokeStyle = S.mode==="obs" ? "#c0392b" : S.mode==="scale" ? "#111" : "#d9800a";
+    ctx.lineWidth=lw*1.4; ctx.beginPath();
+    S.cur.forEach((p,i)=> i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));
+    if(S.hover) ctx.lineTo(S.hover[0],S.hover[1]);
+    ctx.stroke();
+    ctx.fillStyle=ctx.strokeStyle;
+    S.cur.forEach(p=>{ ctx.beginPath(); ctx.arc(p[0],p[1],lw*2.5,0,7); ctx.fill(); });
+  }
+}
+
+/* ---------------- image loading ---------------- */
+function setImage(src){
+  const im = new Image();
+  im.onload = () => {
+    const maxW = 1400, k = Math.min(1, maxW/im.naturalWidth);
+    S.img=im; S.W=Math.round(im.naturalWidth*k); S.H=Math.round(im.naturalHeight*k);
+    cv.width=S.W; cv.height=S.H; cv.hidden=false; $("drop").hidden=true;
+    resetShapes();
+    document.querySelectorAll(".modeBtn,#aiBtn,#undoBtn,#clearBtn").forEach(b=>b.disabled=false);
+    setMode("roof");
+    draw();
+  };
+  im.src = src;
+}
+function resetShapes(){
+  S.roof=[]; S.obs=[]; S.cur=[]; S.scaleLine=[]; S.mPerPx=null; S.scaleSource=null; S.panels=[]; S.recCount=0;
+  $("notesCard").hidden=true; updateScalePill(); recompute();
+}
+$("file").addEventListener("change", e=>{ const f=e.target.files[0]; if(f) readFile(f); });
+function readFile(f){ const r=new FileReader(); r.onload=()=>setImage(r.result); r.readAsDataURL(f); }
+const stage=$("stage");
+stage.addEventListener("dragover", e=>{ e.preventDefault(); });
+stage.addEventListener("drop", e=>{ e.preventDefault(); const f=e.dataTransfer.files[0]; if(f && f.type.startsWith("image/")) readFile(f); });
+
+/* Synthetic sample roof: a 22.5 m × 16.25 m scene at 0.025 m/px */
+function makeSample(){
+  const c=document.createElement("canvas"); c.width=900; c.height=650; const g=c.getContext("2d");
+  // ground + neighbouring lot texture
+  g.fillStyle="#8d8a7c"; g.fillRect(0,0,900,650);
+  for(let i=0;i<2500;i++){ g.fillStyle=`rgba(${60+Math.random()*60|0},${60+Math.random()*50|0},${50+Math.random()*40|0},.25)`; g.fillRect(Math.random()*900,Math.random()*650,3,3); }
+  g.fillStyle="#6f6c60"; g.fillRect(0,560,900,90); // street
+  g.strokeStyle="#e7e3d4"; g.setLineDash([30,22]); g.lineWidth=4; g.beginPath(); g.moveTo(0,605); g.lineTo(900,605); g.stroke(); g.setLineDash([]);
+  // roof (L-shape)
+  const roof=[[120,90],[760,90],[760,330],[560,330],[560,520],[120,520]];
+  g.fillStyle="#cdc6b4"; g.beginPath(); roof.forEach((p,i)=>i?g.lineTo(...p):g.moveTo(...p)); g.closePath(); g.fill();
+  for(let i=0;i<4000;i++){ const x=120+Math.random()*640, y=90+Math.random()*430; if(!(x>560&&y>330)){ g.fillStyle=`rgba(90,80,60,${Math.random()*.08})`; g.fillRect(x,y,2,2);} }
+  g.strokeStyle="#9c9581"; g.lineWidth=10; g.stroke(); // parapet
+  // stairwell block + shadow
+  g.fillStyle="rgba(0,0,0,.25)"; g.fillRect(185,150,150,120);
+  g.fillStyle="#b4ab93"; g.fillRect(170,130,150,120); g.strokeStyle="#8f8770"; g.lineWidth=3; g.strokeRect(170,130,150,120);
+  // water tanks
+  [[640,170],[700,170]].forEach(([x,y])=>{ g.fillStyle="rgba(0,0,0,.25)"; g.beginPath(); g.arc(x+8,y+10,26,0,7); g.fill(); g.fillStyle="#2b2b2b"; g.beginPath(); g.arc(x,y,26,0,7); g.fill(); g.fillStyle="#454545"; g.beginPath(); g.arc(x-5,y-6,10,0,7); g.fill(); });
+  // tree canopy from neighbour (west)
+  const tree=(x,y,r)=>{ g.fillStyle="#3f6b33"; g.beginPath(); g.arc(x,y,r,0,7); g.fill(); g.fillStyle="#5a8a44"; g.beginPath(); g.arc(x-r*.3,y-r*.3,r*.55,0,7); g.fill(); };
+  tree(95,470,80); tree(60,380,55);
+  return {url:c.toDataURL("image/png"), roof, obs:[ [[160,120],[330,120],[330,260],[160,260]], circlePoly(640,170,30), circlePoly(700,170,30), circlePoly(95,470,82) ], mPerPx:0.025};
+}
+function circlePoly(cx,cy,r,n=16){ return Array.from({length:n},(_,i)=>[cx+r*Math.cos(i/n*Math.PI*2), cy+r*Math.sin(i/n*Math.PI*2)]); }
+$("sampleBtn").addEventListener("click", ()=>{
+  const s=makeSample();
+  const im=new Image();
+  im.onload=()=>{
+    S.img=im; S.W=900; S.H=650; cv.width=900; cv.height=650; cv.hidden=false; $("drop").hidden=true;
+    resetShapes();
+    document.querySelectorAll(".modeBtn,#aiBtn,#undoBtn,#clearBtn").forEach(b=>b.disabled=false);
+    S.roof=s.roof; S.obs=s.obs; S.mPerPx=s.mPerPx; S.scaleSource="sample (known: 0.025 m/px)";
+    S.scaleLine=[[120,545],[760,545]];
+    setMode(null);
+    $("modeHint").innerHTML="Sample loaded and pre-traced (roof, stairwell, 2 water tanks, neighbour's tree). With an API key, press <b>Auto-detect with Claude</b> to watch Claude find them itself.";
+    updateScalePill(); recompute();
+  };
+  im.src=s.url;
+});
+
+/* ---------------- canvas interaction ---------------- */
+function toImg(e){
+  const r=cv.getBoundingClientRect();
+  return [ (e.clientX-r.left)*S.W/r.width, (e.clientY-r.top)*S.H/r.height ];
+}
+const HINTS = {
+  roof:"<b>Trace roof:</b> click each corner of the flat, usable roof. Click the first point or press <b>Finish shape</b> to close it.",
+  obs:"<b>Add obstruction:</b> trace a water tank, stairwell, AC unit or tree canopy, then finish the shape. Add as many as you need.",
+  scale:"<b>Set scale:</b> click two points whose real distance you know (for example one roof edge), then enter the length in metres."
+};
+function setMode(m){
+  S.mode=m; S.cur=[]; S.hover=null;
+  document.querySelectorAll(".modeBtn").forEach(b=>b.classList.toggle("active", b.dataset.mode===m));
+  $("modeHint").innerHTML = m ? HINTS[m] : "";
+  $("finishBtn").disabled = !(m==="roof"||m==="obs");
+  draw();
+}
+document.querySelectorAll(".modeBtn").forEach(b=>b.addEventListener("click",()=>setMode(b.dataset.mode)));
+cv.addEventListener("mousemove", e=>{ if(S.cur.length){ S.hover=toImg(e); draw(); } });
+cv.addEventListener("click", e=>{
+  if(!S.mode) return;
+  const p=toImg(e);
+  if(S.mode==="scale"){
+    S.cur.push(p);
+    if(S.cur.length===2){
+      const [a,b]=S.cur; const px=Math.hypot(b[0]-a[0],b[1]-a[1]);
+      const v=prompt("Real length of that line, in metres?", "10");
+      const mtr=parseFloat(v);
+      if(mtr>0 && px>5){ S.mPerPx=mtr/px; S.scaleLine=[a,b]; S.scaleSource="you measured it"; }
+      S.cur=[]; S.hover=null; updateScalePill(); recompute();
+    }
+    draw(); return;
+  }
+  if(S.cur.length>=3){
+    const f=S.cur[0], tol=12*S.W/cv.getBoundingClientRect().width;
+    if(Math.hypot(p[0]-f[0],p[1]-f[1])<tol){ finishShape(); return; }
+  }
+  S.cur.push(p); draw();
+});
+cv.addEventListener("dblclick", e=>{ e.preventDefault(); if(S.cur.length>=3) finishShape(); });
+function finishShape(){
+  if(S.cur.length<3) return;
+  if(S.mode==="roof") S.roof=S.cur.slice();
+  else if(S.mode==="obs") S.obs.push(S.cur.slice());
+  S.cur=[]; S.hover=null;
+  if(S.mode==="roof"){
+    setMode(S.mPerPx ? "obs" : "scale");
+  }
+  recompute();
+}
+$("finishBtn").addEventListener("click", finishShape);
+$("undoBtn").addEventListener("click", ()=>{
+  if(S.cur.length) S.cur.pop();
+  else if(S.obs.length) S.obs.pop();
+  else if(S.roof.length) S.roof=[];
+  recompute();
+});
+$("clearBtn").addEventListener("click", ()=>{ resetShapes(); setMode("roof"); });
+function updateScalePill(){
+  $("scalePill").textContent = S.mPerPx ? `Scale: ${fmt(S.mPerPx*100,2)} cm per pixel · ${S.scaleSource}` : "Scale: not set (use Set scale)";
+}
+
+/* ---------------- Claude vision ---------------- */
+function status(el,msg,kind){ el.className="status show"+(kind?" "+kind:""); el.innerHTML=msg; }
+function imageForClaude(){
+  const maxSide=1500, k=Math.min(1, maxSide/Math.max(S.W,S.H));
+  const c=document.createElement("canvas"); c.width=Math.round(S.W*k); c.height=Math.round(S.H*k);
+  c.getContext("2d").drawImage(S.img,0,0,c.width,c.height);
+  return c.toDataURL("image/jpeg",0.9).split(",")[1];
+}
+const CLAUDE_PROMPT = `You are a rooftop solar surveyor. The image is a top-down (satellite or drone) view of a building roof, assumed north-up.
+
+Return ONLY a JSON object, no prose, with coordinates as integers on a 0-1000 grid where (0,0) is the top-left and (1000,1000) the bottom-right of the image:
+{
+  "roof_polygon": [[x,y], ...],           // outline of the main flat or gently sloped roof usable for panels, 4-12 points, in order
+  "obstructions": [{"label": "water tank", "polygon": [[x,y], ...]}],  // everything that blocks panels or casts shade ON the roof: water tanks, stairwell/mumty, AC units, dish antennas, skylights, solar heaters, overhanging tree canopy
+  "roof_type": "flat RCC / sloped tin / etc.",
+  "longest_roof_edge_m": number or null,  // your best real-world estimate from visual cues (cars, doors, tanks ~1-1.5 m wide), or null if impossible
+  "shading_risk": "low | medium | high",
+  "assessment": "4-6 short sentences for the homeowner: roof condition, main obstructions, shading sources and from which direction, any parapet or access issues, and one practical tip."
+}
+If the image does not show a roof, return {"error": "reason"}.`;
+async function runClaude(){
+  const key=$("apiKey").value.trim();
+  const st=$("aiStatus");
+  if(!key){ document.querySelector("details").open=true; status(st,"Add your Claude API key below to auto-detect, or trace the roof by hand.","err"); return; }
+  if($("remember").checked) store("sc_key",key);
+  const btn=$("aiBtn"); btn.disabled=true; btn.innerHTML='<span class="spin"></span> Claude is surveying your roof…';
+  status(st,"Sending the image to Claude…");
+  try{
+    const res = await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST",
+      headers:{ "content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true" },
+      body: JSON.stringify({
+        model: $("model").value.trim() || "claude-sonnet-5-5",
+        max_tokens: 2000,
+        messages:[{ role:"user", content:[
+          { type:"image", source:{ type:"base64", media_type:"image/jpeg", data:imageForClaude() } },
+          { type:"text", text: CLAUDE_PROMPT }
+        ]}]
+      })
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data?.error?.message || ("HTTP "+res.status));
+    const text = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
+    const m = text.match(/\{[\s\S]*\}/);
+    if(!m) throw new Error("Claude didn't return JSON.");
+    applyClaude(JSON.parse(m[0]));
+  }catch(err){
+    status(st,"Auto-detect failed: "+escapeHTML(err.message)+". You can still trace the roof by hand.","err");
+  }finally{
+    btn.disabled=false; btn.innerHTML="✨ Auto-detect with Claude";
+  }
+}
+function applyClaude(j){
+  const st=$("aiStatus");
+  if(j.error){ status(st,"Claude: "+escapeHTML(j.error),"err"); return; }
+  const conv = poly => (poly||[]).map(([x,y])=>[x/1000*S.W, y/1000*S.H]);
+  const roof = conv(j.roof_polygon);
+  if(roof.length<3){ status(st,"Claude couldn't find a clear roof outline. Try a tighter crop, or trace it by hand.","err"); return; }
+  S.roof = roof;
+  S.obs = (j.obstructions||[]).map(o=>conv(o.polygon)).filter(p=>p.length>=3);
+  let scaleMsg="";
+  if(!S.mPerPx && j.longest_roof_edge_m>0){
+    let longest=0; for(let i=0;i<roof.length;i++){ const a=roof[i],b=roof[(i+1)%roof.length]; longest=Math.max(longest,Math.hypot(b[0]-a[0],b[1]-a[1])); }
+    S.mPerPx = j.longest_roof_edge_m/longest; S.scaleSource="estimated by Claude, calibrate for accuracy";
+    scaleMsg=` Scale was estimated from visual cues (longest edge ≈ ${fmt(j.longest_roof_edge_m,1)} m). Use <b>Set scale</b> for an exact figure.`;
+  }
+  const labels=(j.obstructions||[]).map(o=>o.label).filter(Boolean);
+  status(st,`Claude found the roof and ${S.obs.length} obstruction${S.obs.length===1?"":"s"}${labels.length?" ("+escapeHTML(labels.join(", "))+")":""}.${scaleMsg} You can edit with Undo or add more shapes.`,"ok");
+  $("notes").innerHTML = `<p style="margin:0 0 8px"><span class="pill">${escapeHTML(j.roof_type||"roof")}</span> <span class="pill">Shading risk: ${escapeHTML(j.shading_risk||"n/a")}</span></p>${escapeHTML(j.assessment||"")}`;
+  $("notesCard").hidden=false;
+  setMode(S.mPerPx?null:"scale");
+  updateScalePill(); recompute();
+}
+function escapeHTML(s){ return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+$("aiBtn").addEventListener("click", runClaude);
+
+/* ---------------- solar resource (NASA POWER) ---------------- */
+async function fetchSolar(){
+  const lat=+$("lat").value, lon=+$("lon").value;
+  if(!isFinite(lat)||!isFinite(lon)||$("lat").value===""||$("lon").value==="") return;
+  const key=lat.toFixed(2)+","+lon.toFixed(2);
+  if(S.solarKey===key && S.ghi) return;
+  S.solarKey=key;
+  const st=$("solarStatus"); status(st,"Fetching 20+ years of satellite sunlight data from NASA POWER…");
+  try{
+    const url=`https://power.larc.nasa.gov/api/temporal/climatology/point?parameters=ALLSKY_SFC_SW_DWN&community=RE&longitude=${lon.toFixed(4)}&latitude=${lat.toFixed(4)}&format=JSON`;
+    const ctl=new AbortController(); const t=setTimeout(()=>ctl.abort(),15000);
+    const r=await fetch(url,{signal:ctl.signal}); clearTimeout(t);
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const d=await r.json();
+    const p=d.properties.parameter.ALLSKY_SFC_SW_DWN;
+    const keys=["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+    const ghi=keys.map(k=>+p[k]);
+    if(ghi.some(v=>!(v>0))) throw new Error("no data for this point");
+    if(S.solarKey!==key) return;
+    S.ghi=ghi; S.ghiSource=`NASA POWER climatology at ${lat.toFixed(3)}, ${lon.toFixed(3)} (avg ${fmt(p.ANN,2)} kWh/m²/day)`;
+    status(st,`☀️ ${fmt(p.ANN,2)} kWh/m²/day average sunlight here (NASA POWER).`,"ok");
+  }catch(e){
+    if(S.solarKey!==key) return;
+    S.ghi=FALLBACK_GHI; S.ghiSource="typical north-India profile (NASA POWER was unreachable)";
+    status(st,"Couldn't reach NASA POWER, so a typical north-India sunlight profile is used. Results are approximate.","err");
+  }
+  recompute();
+}
+
+/* ---------------- finance ---------------- */
+function centralSubsidy(kw){
+  const special = $("special").value==="1";
+  const a = special?33000:30000, b = special?19800:18000;
+  const cap = special?85800:78000;
+  const s = Math.min(kw,2)*a + Math.max(0, Math.min(kw,3)-2)*b;
+  return Math.min(s, cap);
+}
+function compute(){
+  if(S.roof.length<3 || !S.mPerPx || !S.ghi) return null;
+  const wp = +$("pw").value||550, pr=+$("pr").value||0.77;
+  const maxN = S.panels.length;
+  const yearlyPerKw = S.ghi.reduce((s,g,i)=>s+g*DAYS[i],0)*pr; // kWh per kWp per year
+  const useYear = (+$("units").value||0)*12;
+  let recN = useYear>0 ? Math.ceil(useYear/yearlyPerKw*1000/wp) : maxN;
+  recN = Math.max(0, Math.min(maxN, recN));
+  const kw = recN*wp/1000;
+  const monthly = S.ghi.map((g,i)=>kw*g*DAYS[i]*pr);
+  const gen = monthly.reduce((a,b)=>a+b,0);
+  const tariff=+$("tariff").value||0, exp=+$("exportRate").value||0;
+  const selfUse = useYear>0 ? Math.min(gen,useYear) : gen;
+  const savings = selfUse*tariff + Math.max(0,gen-selfUse)*exp;
+  const cost = kw*(+$("cost").value||0);
+  const csub = centralSubsidy(kw);
+  const ssub = Math.min(kw*(+$("stateKw").value||0), +$("stateCap").value||0);
+  const net = Math.max(0,cost-csub-ssub);
+  let life=0; for(let y=0;y<25;y++) life += savings*Math.pow(0.995,y);
+  const roofM2 = polyArea(S.roof)*S.mPerPx*S.mPerPx;
+  const obsM2 = S.obs.reduce((s,o)=>s+polyArea(o),0)*S.mPerPx*S.mPerPx;
+  return { maxN, recN, kw, maxKw:maxN*wp/1000, monthly, gen, useYear, savings, cost, csub, ssub, net,
+           payback: savings>0? net/savings : Infinity, life, co2: gen*CO2_KG_PER_KWH/1000, roofM2, obsM2, yearlyPerKw };
+}
+function recompute(){
+  layoutPanels();
+  const r = compute();
+  S.recCount = r ? r.recN : 0;
+  draw();
+  render(r);
+}
+function render(r){
+  const box=$("results");
+  if(!r){
+    const need=[];
+    if(S.roof.length<3) need.push("map the roof");
+    if(!S.mPerPx) need.push("set the scale");
+    if(!S.ghi) need.push("choose a location");
+    box.innerHTML=`<p class="empty">To see your plan: ${need.join(", ")}.</p>`;
+    $("chartCard").hidden=true; $("costCard").hidden=true; return;
+  }
+  if(r.maxN===0){
+    box.innerHTML=`<p class="empty">No standard panels fit inside the usable area with the current setback and obstruction gap. Check the scale, or reduce the setbacks under assumptions.</p>`;
+    $("chartCard").hidden=true; $("costCard").hidden=true; return;
+  }
+  const coverage = r.useYear>0 ? Math.min(100, r.gen/r.useYear*100) : 100;
+  box.innerHTML = `
+    <div class="kpis">
+      <div class="kpi hero"><div class="l">Recommended system</div><div class="v">${fmt(r.kw,2)} kW · ${r.recN} panels</div>
+        <div class="l">Covers ${fmt(coverage,0)}% of your electricity use · roof fits up to ${fmt(r.maxKw,2)} kW (${r.maxN} panels, ${S.orient})</div></div>
+      <div class="kpi"><div class="v">${fmt(r.gen,0)} kWh</div><div class="l">Generated per year</div></div>
+      <div class="kpi"><div class="v">${fmtINR(r.savings)}</div><div class="l">Saved per year</div></div>
+      <div class="kpi"><div class="v">${fmtINR(r.net)}</div><div class="l">Your cost after subsidy</div></div>
+      <div class="kpi"><div class="v">${isFinite(r.payback)?fmt(r.payback,1)+" yrs":"n/a"}</div><div class="l">Payback period</div></div>
+      <div class="kpi"><div class="v">${fmtINR(r.life)}</div><div class="l">Saved over 25 years</div></div>
+      <div class="kpi"><div class="v">${fmt(r.co2,1)} t</div><div class="l">CO₂ avoided per year</div></div>
+    </div>
+    <p class="hint">Roof area ${fmt(r.roofM2,0)} m², obstructions ${fmt(r.obsM2,0)} m². Each kW here makes about ${fmt(r.yearlyPerKw,0)} kWh a year. Panels are south-facing at ${+$("tilt").value}° tilt, with rows spaced for no winter-noon self-shading.</p>`;
+  // cost table
+  $("costTable").innerHTML = `
+    <tr><td>System cost (${fmt(r.kw,2)} kW × ${fmtINR(+$("cost").value)}/kW)</td><td>${fmtINR(r.cost)}</td></tr>
+    <tr><td>PM Surya Ghar central subsidy</td><td style="color:var(--good)">− ${fmtINR(r.csub)}</td></tr>
+    ${r.ssub>0?`<tr><td>State subsidy</td><td style="color:var(--good)">− ${fmtINR(r.ssub)}</td></tr>`:""}
+    <tr class="total"><td>You pay</td><td>${fmtINR(r.net)}</td></tr>`;
+  $("costCard").hidden=false;
+  drawChart(r);
+}
+function drawChart(r){
+  $("chartCard").hidden=false;
+  const c=$("chart"), g=c.getContext("2d"), W=c.width, H=c.height, pad={l:42,r:10,t:12,b:28};
+  g.clearRect(0,0,W,H);
+  const use = r.useYear/12;
+  const max = Math.max(use, ...r.monthly)*1.15 || 1;
+  const bw=(W-pad.l-pad.r)/12;
+  g.font="11px system-ui"; g.fillStyle="#6b6557"; g.strokeStyle="#e7e0cf"; g.lineWidth=1;
+  for(let i=0;i<=4;i++){ const v=max*i/4, y=H-pad.b-(H-pad.t-pad.b)*i/4; g.beginPath(); g.moveTo(pad.l,y); g.lineTo(W-pad.r,y); g.stroke(); g.fillText(Math.round(v),4,y+4); }
+  r.monthly.forEach((v,i)=>{
+    const h=(H-pad.t-pad.b)*v/max, x=pad.l+i*bw+bw*0.18;
+    g.fillStyle="#f5a524"; g.fillRect(x,H-pad.b-h,bw*0.64,h);
+    g.fillStyle="#6b6557"; g.fillText(MONTHS[i],x+bw*0.05,H-10);
+  });
+  if(use>0){
+    const y=H-pad.b-(H-pad.t-pad.b)*use/max;
+    g.strokeStyle="#1f4fa8"; g.lineWidth=2; g.setLineDash([6,4]); g.beginPath(); g.moveTo(pad.l,y); g.lineTo(W-pad.r,y); g.stroke(); g.setLineDash([]);
+    const lbl=`your use ≈ ${Math.round(use)} units/month`, tw=g.measureText(lbl).width;
+    g.fillStyle="rgba(255,255,255,.92)"; g.fillRect(pad.l+4,y-17,tw+8,15);
+    g.fillStyle="#1f4fa8"; g.fillText(lbl, pad.l+8, y-6);
+  }
+  $("chartSrc").textContent="Bars: kWh generated per month. Sunlight source: "+S.ghiSource+".";
+}
+
+/* ---------------- location ---------------- */
+CITIES.forEach(([n])=>{ const o=document.createElement("option"); o.textContent=n; $("city").appendChild(o); });
+$("city").addEventListener("change", ()=>{
+  const c=CITIES.find(x=>x[0]===$("city").value);
+  if(c && c[1]!=null){ $("lat").value=c[1]; $("lon").value=c[2]; S.ghi=null; fetchSolar(); }
+});
+["lat","lon"].forEach(id=>$(id).addEventListener("change",()=>{ $("city").value="Custom"; S.ghi=null; fetchSolar(); }));
+$("geoBtn").addEventListener("click", ()=>{
+  if(!navigator.geolocation){ status($("solarStatus"),"Location isn't available in this browser.","err"); return; }
+  navigator.geolocation.getCurrentPosition(p=>{
+    $("lat").value=p.coords.latitude.toFixed(4); $("lon").value=p.coords.longitude.toFixed(4); $("city").value="Custom"; S.ghi=null; fetchSolar();
+  }, ()=>status($("solarStatus"),"Couldn't get your location. Pick a city or type coordinates.","err"));
+});
+document.querySelectorAll("aside input:not(#lat):not(#lon), aside select:not(#city)").forEach(el=>el.addEventListener("input", recompute));
+
+/* ---------------- init ---------------- */
+(function init(){
+  const k=load("sc_key"); if(k){ $("apiKey").value=k; $("remember").checked=true; }
+  $("remember").addEventListener("change",()=>{ if(!$("remember").checked) store("sc_key",null); });
+  $("city").value="New Delhi"; $("lat").value=28.6139; $("lon").value=77.2090;
+  fetchSolar();
+})();
+</script>
+</body>
+</html>
