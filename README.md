@@ -4,7 +4,7 @@
 
 *Chhat* (छत) means roof in Hindi.
 
-👉 **Live demo:** https://YOUR-GITHUB-USERNAME.github.io/solarchhat/
+👉 **Live demo:** https://dhakahimanshu0082-maker.github.io/solarchhat/
 
 ![SolarChhat screenshot](docs/screenshot.png)
 
